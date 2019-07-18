@@ -140,8 +140,9 @@ public class Network implements Cloneable, Serializable {
 		reducedNetworkNeighbor1 = new int[neighbor.length];
 		reducedNetworkEdgeWeight1 = new double[edgeWeight.length];
 		
+		// 下面的两段注释中, 节点i表示当前节点
 		reducedNetworkNeighbor2 = new int[nClusters - 1]; // reducedNetworkNeighbor2: 在压缩的网络中, 节点i相连的neighbor数组
-		reducedNetworkEdgeWeight2 = new double[nClusters]; // 
+		reducedNetworkEdgeWeight2 = new double[nClusters]; // reducedNetworkEdgeWeight2[k]: 在压缩的网络中, 节点i与节点k所连接的边的权重
 		reducedNetworkNEdges1 = 0;
 		
 		for (i = 0; i < nClusters; i++) {
@@ -153,7 +154,7 @@ public class Network implements Cloneable, Serializable {
 				for (l = firstNeighborIndex[k]; l < firstNeighborIndex[k + 1]; l++) {
 					// neighbor[l] 是与id为k的节点相邻的节点
 					m = cluster[neighbor[l]]; // m是k的在l位置的邻居节点所属的簇id
-					if (m != i) { // m 和 i不表示同一个簇的时候 => 压缩的网络的节点m和节点i相连接
+					if (m != i) { // m 和 i对应不同的簇的时候 => 压缩的网络的节点m和节点i相连接
 						if (reducedNetworkEdgeWeight2[m] == 0) {
 							// 首次发现压缩之后的网络上, 当前节点i与第m个节点相连的时候
 							reducedNetworkNeighbor2[reducedNetworkNEdges2] = m; // 与当前节点相连接的第reducedNetworkNEdges2个节点是m
@@ -165,13 +166,13 @@ public class Network implements Cloneable, Serializable {
 				}
 				reducedNetwork.nodeWeight[i] += nodeWeight[k]; // 将簇i中的节点的权重累加到簇i上
 			}
-			for (j = 0; j < reducedNetworkNEdges2; j++) {
+			for (j = 0; j < reducedNetworkNEdges2; j++) { // 遍历在压缩的网络中, 与节点i相连的节点
 				reducedNetworkNeighbor1[reducedNetworkNEdges1 + j] = reducedNetworkNeighbor2[j];
 				reducedNetworkEdgeWeight1[reducedNetworkNEdges1
 						+ j] = reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]];
 				reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]] = 0;
 			}
-			reducedNetworkNEdges1 += reducedNetworkNEdges2;
+			reducedNetworkNEdges1 += reducedNetworkNEdges2; // 压缩的网络中, 与节点i相连接的节点的数量
 			reducedNetwork.firstNeighborIndex[i + 1] = reducedNetworkNEdges1;
 		}
 		reducedNetwork.neighbor = new int[reducedNetworkNEdges1];
