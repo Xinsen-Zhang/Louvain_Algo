@@ -7,8 +7,7 @@ public class Network implements Cloneable, Serializable {
 	private static final long serialVersionUID = 1;
  
 	private int nNodes; // 网络的节点数
-	private int[] firstNeighborIndex; // 去重排序后, 有边连接的节点(id小的那个节点)
-	
+	private int[] firstNeighborIndex; // 去重
 	private int[] neighbor; // 有几条edge长度就有多长
 	private double[] edgeWeight; // 长度与neighbor数组相同
  
@@ -97,13 +96,13 @@ public class Network implements Cloneable, Serializable {
 	}
  
 	public void mergeClusters(int[] newCluster) {
-//		todo: mergeClusters的原理是什么
+//		todo: mergeClusters的原理是什么(暂时用不上)
 		int i, j, k;
 		if (cluster == null)
 			return;
 		i = 0;
 		for (j = 0; j < nNodes; j++) {
-			k = newCluster[cluster[j]];
+			k = newCluster[cluster[j]]; // 节点j的簇在新的簇里面的id
 			if (k > i)
 				i = k;
 			cluster[j] = k;
@@ -140,14 +139,17 @@ public class Network implements Cloneable, Serializable {
 		reducedNetworkNeighbor1 = new int[neighbor.length];
 		reducedNetworkEdgeWeight1 = new double[edgeWeight.length];
 		
-		// 下面的两段注释中, 节点i表示当前节点
-		reducedNetworkNeighbor2 = new int[nClusters - 1]; // reducedNetworkNeighbor2: 在压缩的网络中, 节点i相连的neighbor数组
-		reducedNetworkEdgeWeight2 = new double[nClusters]; // reducedNetworkEdgeWeight2[k]: 在压缩的网络中, 节点i与节点k所连接的边的权重
+		/*
+		* 节点i表示压缩之后网络的节点, 对应于压缩前的簇i
+		* reducedNetworkNeighbor2: 在压缩的网络中, 节点i相连的neighbor数组. 不考虑自连接的情况
+		* reducedNetworkEdgeWeight2[k]: 在压缩的网络中, 节点i与节点k所连接的边的权重
+		*/
+		reducedNetworkNeighbor2 = new int[nClusters - 1]; 
+		reducedNetworkEdgeWeight2 = new double[nClusters]; 
 		reducedNetworkNEdges1 = 0;
 		
-		for (i = 0; i < nClusters; i++) {
+		for (i = 0; i < nClusters; i++) { // 开始遍历cluster, 也就是压缩后网络的节点
 			reducedNetworkNEdges2 = 0; // reducedNetworkNEdges2: 在压缩的网络中, 与节点i相连接的边的计数
-			// cluster_i
 			for (j = 0; j < nodePerCluster[i].length; j++) {
 				// 遍历 cluster_i 上面的节点
 				k = nodePerCluster[i][j]; // k是簇i中第j个节点的id
@@ -166,14 +168,17 @@ public class Network implements Cloneable, Serializable {
 				}
 				reducedNetwork.nodeWeight[i] += nodeWeight[k]; // 将簇i中的节点的权重累加到簇i上
 			}
+
+			// 遍历在压缩前的网络中, 与簇i相连接的其他的簇
 			for (j = 0; j < reducedNetworkNEdges2; j++) { // 遍历在压缩的网络中, 与节点i相连的节点
 				reducedNetworkNeighbor1[reducedNetworkNEdges1 + j] = reducedNetworkNeighbor2[j];
-				reducedNetworkEdgeWeight1[reducedNetworkNEdges1
-						+ j] = reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]];
+				reducedNetworkEdgeWeight1[reducedNetworkNEdges1 + j] = reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]];
+						// todo: 这个地方为什么要置未0?
+						// 反复使用变量, 需要置空
 				reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]] = 0;
 			}
-			reducedNetworkNEdges1 += reducedNetworkNEdges2; // 压缩的网络中, 与节点i相连接的节点的数量
-			reducedNetwork.firstNeighborIndex[i + 1] = reducedNetworkNEdges1;
+			reducedNetworkNEdges1 += reducedNetworkNEdges2; // 在压缩之前, 与簇i相连接的簇的数量(不包括本身). 并且在数值上做累计
+			reducedNetwork.firstNeighborIndex[i + 1] = reducedNetworkNEdges1; // todo: 这个地方的firstNeighborIndex 不是很明白是怎么回事
 		}
 		reducedNetwork.neighbor = new int[reducedNetworkNEdges1];
 		reducedNetwork.edgeWeight = new double[reducedNetworkNEdges1];
@@ -192,11 +197,12 @@ public class Network implements Cloneable, Serializable {
 		qualityFunction = 0;
 		totalEdgeWeight = 0;
 		for (i = 0; i < nNodes; i++) {
-			j = cluster[i];
+			j = cluster[i]; //  节点i的cluster
 			for (k = firstNeighborIndex[i]; k < firstNeighborIndex[i + 1]; k++) {
-				if (cluster[neighbor[k]] == j)
-					qualityFunction += edgeWeight[k];
-				totalEdgeWeight += edgeWeight[k];
+				// 节点i相连的节点在neighbor中的索引值
+				if (cluster[neighbor[k]] == j) // 属于同一个簇
+					qualityFunction += edgeWeight[k]; // 簇内的边的权重的累计
+				totalEdgeWeight += edgeWeight[k]; // 总权重
 			}
 		}
 		for (i = 0; i < nClusters; i++)
@@ -220,62 +226,73 @@ public class Network implements Cloneable, Serializable {
 		clusterWeight = new double[nNodes];
 		nNodesPerCluster = new int[nNodes];
 		for (i = 0; i < nNodes; i++) {
+			/*
+			  *       使用clusterWeight和nNodesPerCluster来保存移动之后的簇, 用这个来更新网络的信息
+			 *  clusterWeight: 节点weight的累计. 保存节点i所在的cluster的weight
+			 *  nNodesPerCluster: 节点数量的统计
+			 */
 			clusterWeight[cluster[i]] += nodeWeight[i];
 			nNodesPerCluster[cluster[i]]++;
 		}
+		// todo: unUsedCluster是做什么用的
 		nUnusedClusters = 0;
 		unusedCluster = new int[nNodes];
-		for (i = 0; i < nNodes; i++)
-			if (nNodesPerCluster[i] == 0) {
+		for (i = 0; i < nNodes; i++) 
+			if (nNodesPerCluster[i] == 0) { // 如果cluster没有节点, 逐次存储内容
 				unusedCluster[nUnusedClusters] = i;
 				nUnusedClusters++;
 			}
 		nodeOrder = new int[nNodes];
 		for (i = 0; i < nNodes; i++)
 			nodeOrder[i] = i;
-		for (i = 0; i < nNodes; i++) {
+		for (i = 0; i < nNodes; i++) { // 随机交换n次nodeOrder的顺序
 			j = random.nextInt(nNodes);
 			k = nodeOrder[i];
 			nodeOrder[i] = nodeOrder[j];
 			nodeOrder[j] = k;
 		}
+		
+		// todo: edgeWeightPerCluster和neighboringCluster的作用 
 		edgeWeightPerCluster = new double[nNodes];
 		neighboringCluster = new int[nNodes - 1];
-		nStableNodes = 0;
+		nStableNodes = 0; // 稳定点的计数
 		i = 0;
 		do {
 			j = nodeOrder[i];
-			nNeighboringClusters = 0;
-			for (k = firstNeighborIndex[j]; k < firstNeighborIndex[j + 1]; k++) {
-				l = cluster[neighbor[k]];
-				if (edgeWeightPerCluster[l] == 0) {
+			// 随机选择节点j进行增益的计算
+			nNeighboringClusters = 0; // 相邻的簇的计数
+			for (k = firstNeighborIndex[j]; k < firstNeighborIndex[j + 1]; k++) { // 与随机节点j相连接的neighbor的index
+				l = cluster[neighbor[k]]; // 节点j相连接的簇的id
+				if (edgeWeightPerCluster[l] == 0) { // 首次扫描这个相邻的簇
 					neighboringCluster[nNeighboringClusters] = l;
 					nNeighboringClusters++;
 				}
-				edgeWeightPerCluster[l] += edgeWeight[k];
+				edgeWeightPerCluster[l] += edgeWeight[k]; // 累加计算这个簇的权重, \ Sigma_{i, in}
 			}
+			// 将节点j从原来的簇中移除
 			clusterWeight[cluster[j]] -= nodeWeight[j];
 			nNodesPerCluster[cluster[j]]--;
-			if (nNodesPerCluster[cluster[j]] == 0) {
+			if (nNodesPerCluster[cluster[j]] == 0) { // 如果移除这个节点之后, 簇为空
 				unusedCluster[nUnusedClusters] = cluster[j];
 				nUnusedClusters++;
 			}
 			bestCluster = -1;
 			maxQualityFunction = 0;
 			for (k = 0; k < nNeighboringClusters; k++) {
-				l = neighboringCluster[k];
+				l = neighboringCluster[k]; // l是节点j相邻的cluster
 				qualityFunction = edgeWeightPerCluster[l] - nodeWeight[j] * clusterWeight[l] * resolution;
 				if ((qualityFunction > maxQualityFunction)
-						|| ((qualityFunction == maxQualityFunction) && (l < bestCluster))) {
+						|| ((qualityFunction == maxQualityFunction) && (l < bestCluster))) { // todo: 后面那条规则的意思?
 					bestCluster = l;
 					maxQualityFunction = qualityFunction;
 				}
 				edgeWeightPerCluster[l] = 0;
 			}
-			if (maxQualityFunction == 0) {
+			if (maxQualityFunction == 0) { // 等于0意味着不需要进行簇的转移
 				bestCluster = unusedCluster[nUnusedClusters - 1];
 				nUnusedClusters--;
 			}
+			// 前面先减去是为了后面能够统一操作
 			clusterWeight[bestCluster] += nodeWeight[j];
 			nNodesPerCluster[bestCluster]++;
 			if (bestCluster == cluster[j])
@@ -285,12 +302,13 @@ public class Network implements Cloneable, Serializable {
 				nStableNodes = 1;
 				update = true;
 			}
-			i = (i < nNodes - 1) ? (i + 1) : 0;
+			i = (i < nNodes - 1) ? (i + 1) : 0; // 不停地循环nodeOrder中的顺序
 		} while (nStableNodes < nNodes); // 优化步骤是直到所有的点都稳定下来才结束
 		newCluster = new int[nNodes];
-		nClusters = 0;
+		nClusters = 0; // 更新clusters
 		for (i = 0; i < nNodes; i++)
 			if (nNodesPerCluster[i] > 0) {
+				// 簇内有节点
 				newCluster[i] = nClusters;
 				nClusters++;
 			}
