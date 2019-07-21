@@ -24,7 +24,8 @@ public class Network implements Cloneable, Serializable {
 //	cluster的数据长什么样
 //	第i个node对应的cluster标号
 	
-	public Network(int nNodes, int[] firstNeighborIndex, int[] neighbor, double[] edgeWeight, double[] nodeWeight) {
+	public Network(int nNodes, int[] firstNeighborIndex, int[] neighbor, 
+			double[] edgeWeight, double[] nodeWeight) {
 //		构造器
 		this(nNodes, firstNeighborIndex, neighbor, edgeWeight, nodeWeight, null);
 	}
@@ -170,6 +171,20 @@ public class Network implements Cloneable, Serializable {
 			}
 
 			// 遍历在压缩前的网络中, 与簇i相连接的其他的簇
+			
+			/**
+			 * 用来表示网络的数据结构.
+			 * e.g. 数据类型如下:
+			 * 0: {3,4}
+			 * 1: {3}
+			 * 3: {0,1}
+			 * 4: {0}
+			 * nNodes				4
+			 * firstNeighborIndex	[0,2,3,5]
+			 * neighbor				[3,4,3,0,1,0]
+			 * edgeWeight			[1,1,1,1,1,1]
+			 */
+			
 			for (j = 0; j < reducedNetworkNEdges2; j++) { // 遍历在压缩的网络中, 与节点i相连的节点
 				reducedNetworkNeighbor1[reducedNetworkNEdges1 + j] = reducedNetworkNeighbor2[j];
 				reducedNetworkEdgeWeight1[reducedNetworkNEdges1 + j] = reducedNetworkEdgeWeight2[reducedNetworkNeighbor2[j]];
